@@ -52,10 +52,11 @@ export function BryntumScheduler({
     }));
   }, [data]);
 
-  // Calculate date range from actual event data - MUCH TIGHTER range for day view
+  // Calculate date range from actual event data - timezone-safe using UTC
   const { startDate, endDate } = useMemo(() => {
-    const defaultStart = new Date("2024-01-15T08:00:00Z");
-    const defaultEnd = new Date("2024-01-15T18:00:00Z");
+    // Use fixed UTC dates as defaults
+    const defaultStart = new Date(Date.UTC(2024, 0, 15, 6, 0, 0));
+    const defaultEnd = new Date(Date.UTC(2024, 0, 15, 20, 0, 0));
 
     if (!data || data.events.length === 0) {
       return { startDate: defaultStart, endDate: defaultEnd };
@@ -73,47 +74,46 @@ export function BryntumScheduler({
     const minTime = Math.min(...allDates.map((d) => d.getTime()));
     const maxTime = Math.max(...allDates.map((d) => d.getTime()));
     
-    const dataMinDate = new Date(minTime);
-    const dataMaxDate = new Date(maxTime);
-
-    let viewStart = new Date(dataMinDate);
-    let viewEnd = new Date(dataMaxDate);
+    // Add padding: 2 hours before min, 2 hours after max (using milliseconds for timezone safety)
+    const TWO_HOURS = 2 * 60 * 60 * 1000;
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+    const ONE_WEEK = 7 * ONE_DAY;
+    
+    let viewStartTime = minTime;
+    let viewEndTime = maxTime;
 
     switch (viewPreset) {
       case "dag":
-        // TIGHT day view - just 1 hour before first event to 1 hour after last
-        viewStart = new Date(dataMinDate);
-        viewStart.setMinutes(0, 0, 0);
-        viewStart.setHours(viewStart.getHours() - 1);
-        viewEnd = new Date(dataMaxDate);
-        viewEnd.setMinutes(0, 0, 0);
-        viewEnd.setHours(viewEnd.getHours() + 2);
+        // Day view - 2 hours padding on each side
+        viewStartTime = minTime - TWO_HOURS;
+        viewEndTime = maxTime + TWO_HOURS;
         break;
       case "vecka":
-        viewStart = new Date(dataMinDate);
-        viewStart.setHours(0, 0, 0, 0);
-        const dayOfWeek = viewStart.getDay();
-        const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-        viewStart.setDate(viewStart.getDate() + diffToMonday);
-        viewEnd = new Date(viewStart);
-        viewEnd.setDate(viewEnd.getDate() + 7);
+        // Week view - round to week boundaries
+        viewStartTime = minTime - ONE_DAY;
+        viewEndTime = minTime + ONE_WEEK;
         break;
       case "14dagar":
-        viewStart = new Date(dataMinDate);
-        viewStart.setHours(0, 0, 0, 0);
-        viewEnd = new Date(viewStart);
-        viewEnd.setDate(viewEnd.getDate() + 14);
+        // 14 days view
+        viewStartTime = minTime - ONE_DAY;
+        viewEndTime = minTime + (14 * ONE_DAY);
         break;
       case "manad":
-        viewStart = new Date(dataMinDate);
-        viewStart.setDate(1);
-        viewStart.setHours(0, 0, 0, 0);
-        viewEnd = new Date(viewStart);
-        viewEnd.setMonth(viewEnd.getMonth() + 1);
+        // Month view - approximately 30 days
+        viewStartTime = minTime - ONE_DAY;
+        viewEndTime = minTime + (30 * ONE_DAY);
         break;
       default:
-        viewStart.setHours(viewStart.getHours() - 1);
-        viewEnd.setHours(viewEnd.getHours() + 1);
+        viewStartTime = minTime - TWO_HOURS;
+        viewEndTime = maxTime + TWO_HOURS;
+    }
+
+    const viewStart = new Date(viewStartTime);
+    const viewEnd = new Date(viewEndTime);
+    
+    // Safety check: ensure end is always after start
+    if (viewEnd.getTime() <= viewStart.getTime()) {
+      return { startDate: defaultStart, endDate: defaultEnd };
     }
 
     return { startDate: viewStart, endDate: viewEnd };
