@@ -52,72 +52,57 @@ export function BryntumScheduler({
     }));
   }, [data]);
 
-  // Calculate date range from actual event data - timezone-safe using UTC
+  // Calculate date range from actual event data - simple and bulletproof
   const { startDate, endDate } = useMemo(() => {
-    // Use fixed UTC dates as defaults
-    const defaultStart = new Date(Date.UTC(2024, 0, 15, 6, 0, 0));
-    const defaultEnd = new Date(Date.UTC(2024, 0, 15, 20, 0, 0));
-
-    if (!data || data.events.length === 0) {
-      return { startDate: defaultStart, endDate: defaultEnd };
-    }
-
-    const allDates = data.events.flatMap((e) => [
-      new Date(e.startDate),
-      new Date(e.endDate),
-    ]).filter(d => !isNaN(d.getTime()));
-
-    if (allDates.length === 0) {
-      return { startDate: defaultStart, endDate: defaultEnd };
-    }
-
-    const minTime = Math.min(...allDates.map((d) => d.getTime()));
-    const maxTime = Math.max(...allDates.map((d) => d.getTime()));
+    // Fixed default: Jan 15, 2024, 6:00 AM to 8:00 PM (as ISO strings to avoid timezone issues)
+    const DEFAULT_START = "2024-01-15T06:00:00.000Z";
+    const DEFAULT_END = "2024-01-15T20:00:00.000Z";
     
-    // Add padding: 2 hours before min, 2 hours after max (using milliseconds for timezone safety)
-    const TWO_HOURS = 2 * 60 * 60 * 1000;
-    const ONE_DAY = 24 * 60 * 60 * 1000;
-    const ONE_WEEK = 7 * ONE_DAY;
-    
-    let viewStartTime = minTime;
-    let viewEndTime = maxTime;
-
-    switch (viewPreset) {
-      case "dag":
-        // Day view - 2 hours padding on each side
-        viewStartTime = minTime - TWO_HOURS;
-        viewEndTime = maxTime + TWO_HOURS;
-        break;
-      case "vecka":
-        // Week view - round to week boundaries
-        viewStartTime = minTime - ONE_DAY;
-        viewEndTime = minTime + ONE_WEEK;
-        break;
-      case "14dagar":
-        // 14 days view
-        viewStartTime = minTime - ONE_DAY;
-        viewEndTime = minTime + (14 * ONE_DAY);
-        break;
-      case "manad":
-        // Month view - approximately 30 days
-        viewStartTime = minTime - ONE_DAY;
-        viewEndTime = minTime + (30 * ONE_DAY);
-        break;
-      default:
-        viewStartTime = minTime - TWO_HOURS;
-        viewEndTime = maxTime + TWO_HOURS;
+    if (!data || !data.events || data.events.length === 0) {
+      return { 
+        startDate: new Date(DEFAULT_START), 
+        endDate: new Date(DEFAULT_END) 
+      };
     }
 
-    const viewStart = new Date(viewStartTime);
-    const viewEnd = new Date(viewEndTime);
-    
-    // Safety check: ensure end is always after start
-    if (viewEnd.getTime() <= viewStart.getTime()) {
-      return { startDate: defaultStart, endDate: defaultEnd };
+    // Get all valid timestamps from events
+    const timestamps: number[] = [];
+    for (const e of data.events) {
+      const start = new Date(e.startDate).getTime();
+      const end = new Date(e.endDate).getTime();
+      if (!isNaN(start)) timestamps.push(start);
+      if (!isNaN(end)) timestamps.push(end);
     }
 
-    return { startDate: viewStart, endDate: viewEnd };
-  }, [data, viewPreset]);
+    if (timestamps.length === 0) {
+      return { 
+        startDate: new Date(DEFAULT_START), 
+        endDate: new Date(DEFAULT_END) 
+      };
+    }
+
+    // Find min and max timestamps
+    const minTime = Math.min(...timestamps);
+    const maxTime = Math.max(...timestamps);
+    
+    // Ensure max is after min (sanity check)
+    if (maxTime <= minTime) {
+      return { 
+        startDate: new Date(DEFAULT_START), 
+        endDate: new Date(DEFAULT_END) 
+      };
+    }
+
+    // Add padding in milliseconds (2 hours = 7200000ms)
+    const PADDING = 2 * 60 * 60 * 1000;
+    const paddedStart = minTime - PADDING;
+    const paddedEnd = maxTime + PADDING;
+
+    return { 
+      startDate: new Date(paddedStart), 
+      endDate: new Date(paddedEnd) 
+    };
+  }, [data]);
 
   const extractEventFromRecord = useCallback((record: Record<string, unknown>): SchedulerEvent => {
     return {
@@ -158,6 +143,7 @@ export function BryntumScheduler({
     const { eventRecord, renderData } = renderEvent;
     const status = (eventRecord.status as string) || mode;
     const isAdjusted = eventRecord.isAdjusted as boolean;
+    const eventType = eventRecord.eventType as string;
 
     renderData.wrapperCls.add(status);
     if (isAdjusted) {
@@ -171,9 +157,47 @@ export function BryntumScheduler({
     };
 
     const color = isAdjusted ? colors.adjusted : colors[status] || colors.baseline;
+    const darkerColor = isAdjusted ? "#D97706" : (status === "optimized" ? "#0D9488" : "#64748B");
     renderData.style = `background-color: ${color}; border-left: 3px solid ${color}dd;`;
 
-    return eventRecord.name || "";
+    // Get initials from event name (first letter of first two words, or first two letters)
+    const name = (eventRecord.name as string) || "";
+    const words = name.split(" ");
+    const initials = words.length > 1 
+      ? (words[0][0] + words[1][0]).toUpperCase()
+      : name.slice(0, 2).toUpperCase();
+
+    // Icon based on event type
+    const getIcon = () => {
+      if (eventType === "break") {
+        // Coffee cup icon for breaks
+        return `<svg viewBox="0 0 20 20" fill="currentColor" class="event-icon-svg">
+          <path fill-rule="evenodd" d="M15 8a3 3 0 10-2.977-2.63l-4.94.494a3 3 0 00-2.93 2.631l-.443 4.022A3 3 0 006.688 16H9v1a1 1 0 001 1h0a1 1 0 001-1v-1h2.312a3 3 0 002.978-3.483l-.443-4.022z" clip-rule="evenodd"/>
+        </svg>`;
+      }
+      if (eventType === "travel") {
+        // Car icon for travel
+        return `<svg viewBox="0 0 20 20" fill="currentColor" class="event-icon-svg">
+          <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/>
+        </svg>`;
+      }
+      // Person icon for visits (default)
+      return `<svg viewBox="0 0 20 20" fill="currentColor" class="event-icon-svg">
+        <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
+      </svg>`;
+    };
+
+    // Return HTML with icon badge and name
+    return `
+      <div class="event-content-wrapper">
+        <div class="event-icon-badge" style="background-color: ${darkerColor};">
+          ${getIcon()}
+        </div>
+        <span class="event-label">${name}</span>
+        ${isAdjusted ? '<div class="event-adjusted-indicator"></div>' : ''}
+      </div>
+    `;
   }, [mode]);
 
   const tooltipTemplate = useCallback((eventData: { eventRecord: Record<string, unknown> }) => {
