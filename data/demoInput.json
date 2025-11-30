@@ -1,0 +1,302 @@
+{
+  "vehicles": [
+    {
+      "id": "vehicle-1",
+      "name": "Anna - North Team",
+      "shifts": [
+        {
+          "id": "shift-v1-1",
+          "startTime": "2024-01-15T08:00:00Z",
+          "endTime": "2024-01-15T17:00:00Z",
+          "startLocation": {
+            "latitude": 59.3293,
+            "longitude": 18.0686,
+            "address": "Stockholm Central"
+          },
+          "endLocation": {
+            "latitude": 59.3293,
+            "longitude": 18.0686,
+            "address": "Stockholm Central"
+          }
+        }
+      ],
+      "skills": ["medication", "wound-care"]
+    },
+    {
+      "id": "vehicle-2",
+      "name": "Erik - South Team",
+      "shifts": [
+        {
+          "id": "shift-v2-1",
+          "startTime": "2024-01-15T08:00:00Z",
+          "endTime": "2024-01-15T17:00:00Z",
+          "startLocation": {
+            "latitude": 59.3100,
+            "longitude": 18.0500,
+            "address": "Södermalm Office"
+          },
+          "endLocation": {
+            "latitude": 59.3100,
+            "longitude": 18.0500,
+            "address": "Södermalm Office"
+          }
+        }
+      ],
+      "skills": ["medication", "mobility-support"]
+    },
+    {
+      "id": "vehicle-3",
+      "name": "Maria - East Team",
+      "shifts": [
+        {
+          "id": "shift-v3-1",
+          "startTime": "2024-01-15T09:00:00Z",
+          "endTime": "2024-01-15T18:00:00Z",
+          "startLocation": {
+            "latitude": 59.3400,
+            "longitude": 18.1000,
+            "address": "Östermalm Office"
+          },
+          "endLocation": {
+            "latitude": 59.3400,
+            "longitude": 18.1000,
+            "address": "Östermalm Office"
+          }
+        }
+      ],
+      "skills": ["wound-care", "mobility-support", "medication"]
+    },
+    {
+      "id": "vehicle-4",
+      "name": "Johan - West Team",
+      "shifts": [
+        {
+          "id": "shift-v4-1",
+          "startTime": "2024-01-15T07:00:00Z",
+          "endTime": "2024-01-15T16:00:00Z",
+          "startLocation": {
+            "latitude": 59.3200,
+            "longitude": 17.9500,
+            "address": "Kungsholmen Office"
+          },
+          "endLocation": {
+            "latitude": 59.3200,
+            "longitude": 17.9500,
+            "address": "Kungsholmen Office"
+          }
+        }
+      ],
+      "skills": ["medication"]
+    }
+  ],
+  "visits": [
+    {
+      "id": "visit-1",
+      "name": "Mr. Andersson - Morning Care",
+      "location": {
+        "latitude": 59.3350,
+        "longitude": 18.0650,
+        "address": "Vasagatan 12, Stockholm"
+      },
+      "serviceDuration": "PT45M",
+      "timeWindows": [
+        {
+          "startTime": "2024-01-15T08:00:00Z",
+          "endTime": "2024-01-15T10:00:00Z"
+        }
+      ],
+      "requiredSkills": ["medication"]
+    },
+    {
+      "id": "visit-2",
+      "name": "Mrs. Lindqvist - Wound Dressing",
+      "location": {
+        "latitude": 59.3420,
+        "longitude": 18.0720,
+        "address": "Birger Jarlsgatan 45, Stockholm"
+      },
+      "serviceDuration": "PT30M",
+      "timeWindows": [
+        {
+          "startTime": "2024-01-15T09:00:00Z",
+          "endTime": "2024-01-15T12:00:00Z"
+        }
+      ],
+      "requiredSkills": ["wound-care"]
+    },
+    {
+      "id": "visit-3",
+      "name": "Mr. Svensson - Mobility Exercise",
+      "location": {
+        "latitude": 59.3080,
+        "longitude": 18.0550,
+        "address": "Hornsgatan 78, Stockholm"
+      },
+      "serviceDuration": "PT60M",
+      "timeWindows": [
+        {
+          "startTime": "2024-01-15T10:00:00Z",
+          "endTime": "2024-01-15T14:00:00Z"
+        }
+      ],
+      "requiredSkills": ["mobility-support"]
+    },
+    {
+      "id": "visit-4",
+      "name": "Mrs. Eriksson - Medication Check",
+      "location": {
+        "latitude": 59.3450,
+        "longitude": 18.0950,
+        "address": "Strandvägen 23, Stockholm"
+      },
+      "serviceDuration": "PT20M",
+      "timeWindows": [
+        {
+          "startTime": "2024-01-15T08:30:00Z",
+          "endTime": "2024-01-15T11:00:00Z"
+        }
+      ],
+      "requiredSkills": ["medication"]
+    },
+    {
+      "id": "visit-5",
+      "name": "Mr. Johansson - Full Care",
+      "location": {
+        "latitude": 59.3150,
+        "longitude": 17.9600,
+        "address": "Fleminggatan 34, Stockholm"
+      },
+      "serviceDuration": "PT90M",
+      "timeWindows": [
+        {
+          "startTime": "2024-01-15T07:00:00Z",
+          "endTime": "2024-01-15T10:00:00Z"
+        }
+      ],
+      "requiredSkills": ["medication", "mobility-support"]
+    },
+    {
+      "id": "visit-6",
+      "name": "Mrs. Nilsson - Evening Medication",
+      "location": {
+        "latitude": 59.3380,
+        "longitude": 18.0800,
+        "address": "Kungsgatan 56, Stockholm"
+      },
+      "serviceDuration": "PT25M",
+      "timeWindows": [
+        {
+          "startTime": "2024-01-15T15:00:00Z",
+          "endTime": "2024-01-15T18:00:00Z"
+        }
+      ],
+      "requiredSkills": ["medication"]
+    },
+    {
+      "id": "visit-7",
+      "name": "Mr. Karlsson - Wound Check",
+      "location": {
+        "latitude": 59.3050,
+        "longitude": 18.0700,
+        "address": "Götgatan 89, Stockholm"
+      },
+      "serviceDuration": "PT35M",
+      "timeWindows": [
+        {
+          "startTime": "2024-01-15T11:00:00Z",
+          "endTime": "2024-01-15T15:00:00Z"
+        }
+      ],
+      "requiredSkills": ["wound-care"]
+    },
+    {
+      "id": "visit-8",
+      "name": "Mrs. Olsson - Afternoon Care",
+      "location": {
+        "latitude": 59.3500,
+        "longitude": 18.0550,
+        "address": "Odengatan 12, Stockholm"
+      },
+      "serviceDuration": "PT50M",
+      "timeWindows": [
+        {
+          "startTime": "2024-01-15T13:00:00Z",
+          "endTime": "2024-01-15T17:00:00Z"
+        }
+      ],
+      "requiredSkills": ["medication", "wound-care"]
+    },
+    {
+      "id": "visit-9",
+      "name": "Mr. Pettersson - Morning Routine",
+      "location": {
+        "latitude": 59.3250,
+        "longitude": 18.0400,
+        "address": "Kungsholmsgatan 45, Stockholm"
+      },
+      "serviceDuration": "PT40M",
+      "timeWindows": [
+        {
+          "startTime": "2024-01-15T08:00:00Z",
+          "endTime": "2024-01-15T11:00:00Z"
+        }
+      ],
+      "requiredSkills": ["medication"]
+    },
+    {
+      "id": "visit-10",
+      "name": "Mrs. Larsson - Mobility Support",
+      "location": {
+        "latitude": 59.3180,
+        "longitude": 18.0850,
+        "address": "Södermannagatan 21, Stockholm"
+      },
+      "serviceDuration": "PT55M",
+      "timeWindows": [
+        {
+          "startTime": "2024-01-15T14:00:00Z",
+          "endTime": "2024-01-15T17:00:00Z"
+        }
+      ],
+      "requiredSkills": ["mobility-support"]
+    },
+    {
+      "id": "visit-11",
+      "name": "Mr. Berg - Quick Check",
+      "location": {
+        "latitude": 59.3320,
+        "longitude": 18.0600,
+        "address": "Drottninggatan 67, Stockholm"
+      },
+      "serviceDuration": "PT15M",
+      "timeWindows": [
+        {
+          "startTime": "2024-01-15T09:00:00Z",
+          "endTime": "2024-01-15T12:00:00Z"
+        }
+      ],
+      "requiredSkills": ["medication"]
+    },
+    {
+      "id": "visit-12",
+      "name": "Mrs. Holm - Complex Care",
+      "location": {
+        "latitude": 59.3480,
+        "longitude": 18.1050,
+        "address": "Karlavägen 78, Stockholm"
+      },
+      "serviceDuration": "PT75M",
+      "timeWindows": [
+        {
+          "startTime": "2024-01-15T10:00:00Z",
+          "endTime": "2024-01-15T14:00:00Z"
+        }
+      ],
+      "requiredSkills": ["wound-care", "medication"]
+    }
+  ],
+  "options": {
+    "balanceWorkload": true
+  }
+}
+
