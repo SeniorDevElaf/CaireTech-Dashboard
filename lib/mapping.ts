@@ -229,11 +229,54 @@ export function mapRoutePlanToOptimizedSchedule(
         const visitId = plannedVisit.id || plannedVisit.visitId || `unknown-${visitIndex}`;
         const visitDetails = visitMap.get(visitId);
         
+        // Get start date - prefer arrivalTime, then startServiceTime
+        let startDateStr = plannedVisit.arrivalTime || plannedVisit.startServiceTime;
+        let endDateStr = plannedVisit.departureTime;
+        
+        // If we have a start but no end, calculate end from service duration
+        if (startDateStr && !endDateStr) {
+          const startDate = new Date(startDateStr);
+          const serviceDuration = parseDurationToMinutes(visitDetails?.serviceDuration) || 30;
+          const endDate = addMinutes(startDate, serviceDuration);
+          endDateStr = endDate.toISOString();
+        }
+        
+        // If we have an end but no start, calculate start from service duration
+        if (!startDateStr && endDateStr) {
+          const endDate = new Date(endDateStr);
+          const serviceDuration = parseDurationToMinutes(visitDetails?.serviceDuration) || 30;
+          const startDate = new Date(endDate.getTime() - serviceDuration * 60000);
+          startDateStr = startDate.toISOString();
+        }
+        
+        // Skip events with no valid dates at all
+        if (!startDateStr || !endDateStr) {
+          console.warn(`Skipping visit ${visitId} - missing date information`);
+          return;
+        }
+        
+        // Validate that start is before end
+        const startTime = new Date(startDateStr).getTime();
+        const endTime = new Date(endDateStr).getTime();
+        
+        if (isNaN(startTime) || isNaN(endTime)) {
+          console.warn(`Skipping visit ${visitId} - invalid date format`);
+          return;
+        }
+        
+        if (startTime >= endTime) {
+          // If dates are inverted, recalculate end from start + service duration
+          console.warn(`Visit ${visitId} has inverted dates, recalculating...`);
+          const serviceDuration = parseDurationToMinutes(visitDetails?.serviceDuration) || 30;
+          const correctedEnd = addMinutes(new Date(startDateStr), serviceDuration);
+          endDateStr = correctedEnd.toISOString();
+        }
+        
         events.push({
           id: `opt-${visitId}-${visitIndex}`,
           resourceId: route.vehicleId,
-          startDate: plannedVisit.arrivalTime || plannedVisit.startServiceTime || new Date().toISOString(),
-          endDate: plannedVisit.departureTime || new Date().toISOString(),
+          startDate: startDateStr,
+          endDate: endDateStr,
           name: visitDetails?.name || visitId,
           eventType: "visit",
           status: "optimized",
