@@ -290,7 +290,16 @@ export default function HomePage() {
           setRoutePlan(plan);
           
           if (inputModel) {
+            console.log(`[Optimization Complete] Routes: ${plan.routes?.length ?? 0}`);
             const optimized = mapRoutePlanToOptimizedSchedule(plan, inputModel);
+            console.log(`[Optimization Complete] Optimized events: ${optimized.events.length}, resources: ${optimized.resources.length}`);
+            
+            if (optimized.events.length > 0) {
+              console.log(`[Optimization Complete] First event:`, optimized.events[0]);
+            } else {
+              console.warn(`[Optimization Complete] WARNING: No events in optimized schedule!`);
+            }
+            
             setOptimizedSchedule(optimized);
             
             if (baselineSchedule) {
@@ -298,6 +307,9 @@ export default function HomePage() {
               setKpis(finalKpis);
             }
           }
+          
+          // Enable the "optimerad" filter so optimized events are visible
+          setActiveStatusFilters(new Set<EventStatusFilter>(["optimerad"]));
           
           setCurrentView("optimized");
           setStatus("complete");

@@ -232,52 +232,16 @@ export async function createRoutePlan(
  */
 export async function getRoutePlan(routePlanId: string): Promise<TimefoldRoutePlan> {
   // Timefold API returns nested structure with metadata and run
-  const data = await timefoldFetch<{
-    metadata?: {
-      id: string;
-      solverStatus: string;
-      score?: string;
-      validationResult?: {
-        summary: string;
-        errors?: string[];
-      };
-    };
-    run?: {
-      id: string;
-      solverStatus: string;
-      score?: string;
-      validationResult?: {
-        summary: string;
-        errors?: string[];
-      };
-    };
-    modelOutput?: {
-      vehicles?: Array<{
-        id: string;
-        shifts?: Array<{
-          id: string;
-          startTime?: string;
-          itinerary?: Array<{
-            id: string;
-            kind: string;
-            arrivalTime?: string;
-            startServiceTime?: string;
-            departureTime?: string;
-          }>;
-        }>;
-      }>;
-      unassignedVisits?: string[];
-    };
-    kpis?: {
-      totalTravelTime?: string;
-      totalAssignedVisits?: number;
-      totalUnassignedVisits?: number;
-    };
-    // Direct properties (for non-nested response)
-    id?: string;
-    solverStatus?: string;
-    score?: string;
-  }>(`/route-plans/${routePlanId}`);
+  const data = await timefoldFetch<any>(`/route-plans/${routePlanId}`);
+  
+  // Log the top-level keys for debugging
+  console.log(`[getRoutePlan] Response keys:`, Object.keys(data));
+  
+  // Log a sample of the response structure on first complete response
+  if (data.metadata?.solverStatus === "SOLVING_COMPLETED" || data.run?.solverStatus === "SOLVING_COMPLETED") {
+    console.log(`[getRoutePlan] Full response structure (first 2000 chars):`, 
+      JSON.stringify(data, null, 2).substring(0, 2000));
+  }
 
   // Extract status from metadata (primary) or run (fallback)
   const solverStatus = data.metadata?.solverStatus || data.run?.solverStatus || data.solverStatus || "UNKNOWN";
@@ -291,7 +255,9 @@ export async function getRoutePlan(routePlanId: string): Promise<TimefoldRoutePl
   }
 
   // Extract vehicle routes from modelOutput - the actual API structure has shifts[].itinerary
-  const routes = data.modelOutput?.vehicles?.map(vehicle => {
+  console.log(`[getRoutePlan] modelOutput vehicles: ${data.modelOutput?.vehicles?.length ?? 0}`);
+  
+  const routes = data.modelOutput?.vehicles?.map((vehicle: any, vehicleIndex: number) => {
     // Flatten all itinerary items from all shifts into visits
     const allVisits: Array<{
       id: string;
@@ -300,9 +266,16 @@ export async function getRoutePlan(routePlanId: string): Promise<TimefoldRoutePl
       startServiceTime?: string;
     }> = [];
     
-    vehicle.shifts?.forEach(shift => {
-      shift.itinerary?.forEach(item => {
-        if (item.kind === "VISIT") {
+    vehicle.shifts?.forEach((shift: any, shiftIndex: number) => {
+      // Log the first shift's itinerary structure for debugging
+      if (vehicleIndex === 0 && shiftIndex === 0 && shift.itinerary?.length) {
+        console.log(`[getRoutePlan] Sample itinerary item:`, JSON.stringify(shift.itinerary[0]));
+        console.log(`[getRoutePlan] Shift ${shiftIndex} has ${shift.itinerary.length} itinerary items`);
+      }
+      
+      shift.itinerary?.forEach((item: any) => {
+        // Accept both "VISIT" and "visit" (case-insensitive)
+        if (item.kind?.toUpperCase() === "VISIT") {
           allVisits.push({
             id: item.id,
             arrivalTime: item.arrivalTime,
@@ -313,11 +286,26 @@ export async function getRoutePlan(routePlanId: string): Promise<TimefoldRoutePl
       });
     });
     
+    console.log(`[getRoutePlan] Vehicle ${vehicle.id}: ${allVisits.length} visits extracted`);
+    
     return {
       vehicleId: vehicle.id,
       visits: allVisits,
     };
   });
+
+  // Log summary for debugging
+  const totalVisits = routes?.reduce((sum: number, r: any) => sum + r.visits.length, 0) ?? 0;
+  console.log(`[getRoutePlan] Summary: ${routes?.length ?? 0} routes with ${totalVisits} total visits`);
+  console.log(`[getRoutePlan] Solver status: ${solverStatus}`);
+  
+  if (totalVisits === 0 && solverStatus === "SOLVING_COMPLETED") {
+    console.warn(`[getRoutePlan] WARNING: Solver completed but no visits extracted. Check API response structure.`);
+    console.log(`[getRoutePlan] Raw modelOutput keys:`, data.modelOutput ? Object.keys(data.modelOutput) : 'undefined');
+    if (data.modelOutput?.vehicles?.[0]) {
+      console.log(`[getRoutePlan] First vehicle structure:`, JSON.stringify(data.modelOutput.vehicles[0], null, 2).substring(0, 500));
+    }
+  }
 
   // Map the response to our expected format
   return {
@@ -325,7 +313,7 @@ export async function getRoutePlan(routePlanId: string): Promise<TimefoldRoutePl
     solverStatus: solverStatus as TimefoldRoutePlan["solverStatus"],
     score: score,
     routes: routes,
-    unassignedVisits: data.modelOutput?.unassignedVisits?.map(id => ({ id, name: id })),
+    unassignedVisits: data.modelOutput?.unassignedVisits?.map((id: string) => ({ id, name: id })),
     validationErrors: validationErrors,
     kpis: data.kpis,
   };

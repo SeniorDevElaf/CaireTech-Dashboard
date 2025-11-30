@@ -54,20 +54,35 @@ export function BryntumScheduler({
 
   // Calculate date range from actual event data - MUCH TIGHTER range for day view
   const { startDate, endDate } = useMemo(() => {
-    const defaultStart = new Date("2024-01-15T08:00:00Z");
-    const defaultEnd = new Date("2024-01-15T18:00:00Z");
+    // Create defaults using LOCAL time (not UTC) so working hours display correctly
+    const today = new Date();
+    const defaultStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 7, 0, 0); // 7 AM local
+    const defaultEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 19, 0, 0);  // 7 PM local
 
     if (!data || data.events.length === 0) {
+      console.log(`[BryntumScheduler] No events in data, using defaults: ${defaultStart.toLocaleString()} to ${defaultEnd.toLocaleString()}`);
       return { startDate: defaultStart, endDate: defaultEnd };
     }
 
+    console.log(`[BryntumScheduler] Processing ${data.events.length} events`);
+    
     const allDates = data.events.flatMap((e) => [
       new Date(e.startDate),
       new Date(e.endDate),
     ]).filter(d => !isNaN(d.getTime()));
 
     if (allDates.length === 0) {
+      console.log(`[BryntumScheduler] No valid dates in events, using defaults`);
+      // Log a sample event to debug date parsing issues
+      if (data.events[0]) {
+        console.log(`[BryntumScheduler] Sample event dates: start=${data.events[0].startDate}, end=${data.events[0].endDate}`);
+      }
       return { startDate: defaultStart, endDate: defaultEnd };
+    }
+    
+    // Log the first event's dates for debugging
+    if (data.events[0]) {
+      console.log(`[BryntumScheduler] First event: ${data.events[0].name}, start=${data.events[0].startDate}, end=${data.events[0].endDate}`);
     }
 
     const minTime = Math.min(...allDates.map((d) => d.getTime()));
@@ -116,8 +131,25 @@ export function BryntumScheduler({
         viewEnd.setHours(viewEnd.getHours() + 1);
     }
 
+    // CRITICAL: Ensure startDate is always before endDate to prevent Bryntum error
+    // This can happen when transitioning between baseline/optimized data with different date ranges
+    if (viewStart.getTime() >= viewEnd.getTime()) {
+      console.warn("BryntumScheduler: Correcting invalid date range - start >= end");
+      // If dates are equal or inverted, create a sensible day view around the start date
+      viewEnd = new Date(viewStart);
+      viewEnd.setHours(viewEnd.getHours() + 12); // Show 12 hours from start
+    }
+
     return { startDate: viewStart, endDate: viewEnd };
   }, [data, viewPreset]);
+
+  // Generate a stable key based on the date range to force re-render when dates change significantly
+  // This prevents Bryntum from trying to animate between incompatible date ranges
+  const schedulerKey = useMemo(() => {
+    const startDay = startDate.toISOString().split('T')[0];
+    const endDay = endDate.toISOString().split('T')[0];
+    return `scheduler-${startDay}-${endDay}`;
+  }, [startDate, endDate]);
 
   const extractEventFromRecord = useCallback((record: Record<string, unknown>): SchedulerEvent => {
     return {
@@ -289,6 +321,7 @@ export function BryntumScheduler({
 
   return (
     <BryntumSchedulerPro
+      key={schedulerKey}
       ref={schedulerRef}
       {...schedulerProps}
     />

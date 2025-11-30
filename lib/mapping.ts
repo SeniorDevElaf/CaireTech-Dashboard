@@ -173,6 +173,12 @@ export function mapInputToBaselineSchedule(
     const startDate = addMinutes(shiftStart, visitIndexInVehicle * (visitDuration + 15)); // 15 min travel
     const endDate = addMinutes(startDate, parseDurationToMinutes(visit.serviceDuration) || visitDuration);
     
+    // Ensure start < end
+    if (startDate.getTime() >= endDate.getTime()) {
+      console.warn(`Baseline visit ${visit.id} has invalid date range, skipping`);
+      return;
+    }
+
     events.push({
       id: `baseline-${visit.id}`,
       resourceId: vehicle.id,
@@ -223,11 +229,28 @@ export function mapRoutePlanToOptimizedSchedule(
 
   // Process each vehicle's route
   if (routePlan.routes) {
-    routePlan.routes.forEach((route) => {
+    console.log(`[mapRoutePlanToOptimizedSchedule] Processing ${routePlan.routes.length} routes`);
+    
+    // Get a fallback base time from the first vehicle's shift
+    const fallbackShift = modelInput.vehicles[0]?.shifts[0];
+    const fallbackBaseTime = getShiftStartTime(fallbackShift) || new Date().toISOString();
+    
+    routePlan.routes.forEach((route, routeIndex) => {
+      console.log(`[mapRoutePlanToOptimizedSchedule] Route ${routeIndex} (${route.vehicleId}): ${route.visits.length} visits`);
+      
+      // Track current time for sequential visit placement when dates are missing
+      let currentTime = new Date(fallbackBaseTime);
+      
       route.visits.forEach((plannedVisit, visitIndex) => {
         // Use plannedVisit.id (the actual visit ID from Timefold)
         const visitId = plannedVisit.id || plannedVisit.visitId || `unknown-${visitIndex}`;
         const visitDetails = visitMap.get(visitId);
+        const serviceDuration = parseDurationToMinutes(visitDetails?.serviceDuration) || 30;
+        
+        // Log the raw planned visit data for debugging
+        if (visitIndex === 0) {
+          console.log(`[mapRoutePlanToOptimizedSchedule] Sample plannedVisit:`, JSON.stringify(plannedVisit));
+        }
         
         // Get start date - prefer arrivalTime, then startServiceTime
         let startDateStr = plannedVisit.arrivalTime || plannedVisit.startServiceTime;
@@ -236,42 +259,53 @@ export function mapRoutePlanToOptimizedSchedule(
         // If we have a start but no end, calculate end from service duration
         if (startDateStr && !endDateStr) {
           const startDate = new Date(startDateStr);
-          const serviceDuration = parseDurationToMinutes(visitDetails?.serviceDuration) || 30;
-          const endDate = addMinutes(startDate, serviceDuration);
-          endDateStr = endDate.toISOString();
+          if (!isNaN(startDate.getTime())) {
+            const endDate = addMinutes(startDate, serviceDuration);
+            endDateStr = endDate.toISOString();
+          }
         }
         
         // If we have an end but no start, calculate start from service duration
         if (!startDateStr && endDateStr) {
           const endDate = new Date(endDateStr);
-          const serviceDuration = parseDurationToMinutes(visitDetails?.serviceDuration) || 30;
-          const startDate = new Date(endDate.getTime() - serviceDuration * 60000);
-          startDateStr = startDate.toISOString();
+          if (!isNaN(endDate.getTime())) {
+            const startDate = new Date(endDate.getTime() - serviceDuration * 60000);
+            startDateStr = startDate.toISOString();
+          }
         }
         
-        // Skip events with no valid dates at all
+        // FALLBACK: If no dates at all, generate sequential times based on shift
         if (!startDateStr || !endDateStr) {
-          console.warn(`Skipping visit ${visitId} - missing date information`);
-          return;
+          console.warn(`Visit ${visitId} missing dates, using fallback sequential placement`);
+          // Add 15 min travel time between visits
+          if (visitIndex > 0) {
+            currentTime = addMinutes(currentTime, 15);
+          }
+          startDateStr = currentTime.toISOString();
+          endDateStr = addMinutes(currentTime, serviceDuration).toISOString();
+          currentTime = new Date(endDateStr);
         }
         
-        // Validate that start is before end
-        const startTime = new Date(startDateStr).getTime();
-        const endTime = new Date(endDateStr).getTime();
+        // Parse and validate dates
+        let startTime = new Date(startDateStr).getTime();
+        let endTime = new Date(endDateStr).getTime();
         
         if (isNaN(startTime) || isNaN(endTime)) {
           console.warn(`Skipping visit ${visitId} - invalid date format`);
           return;
         }
         
+        // Fix inverted dates
         if (startTime >= endTime) {
-          // If dates are inverted, recalculate end from start + service duration
           console.warn(`Visit ${visitId} has inverted dates, recalculating...`);
-          const serviceDuration = parseDurationToMinutes(visitDetails?.serviceDuration) || 30;
           const correctedEnd = addMinutes(new Date(startDateStr), serviceDuration);
           endDateStr = correctedEnd.toISOString();
+          endTime = correctedEnd.getTime();
         }
         
+        // Update current time for next fallback calculation
+        currentTime = new Date(endDateStr);
+
         events.push({
           id: `opt-${visitId}-${visitIndex}`,
           resourceId: route.vehicleId,
@@ -286,7 +320,16 @@ export function mapRoutePlanToOptimizedSchedule(
         });
       });
     });
+    
+    console.log(`[mapRoutePlanToOptimizedSchedule] Created ${events.length} events`);
+  } else {
+    console.warn(`[mapRoutePlanToOptimizedSchedule] No routes in routePlan`);
+    console.log(`[mapRoutePlanToOptimizedSchedule] routePlan keys:`, Object.keys(routePlan));
   }
+
+  // If no events from routes, check if there are unassigned visits that we can show
+  console.log(`[mapRoutePlanToOptimizedSchedule] Events after route processing: ${events.length}`);
+  console.log(`[mapRoutePlanToOptimizedSchedule] Unassigned visits: ${routePlan.unassignedVisits?.length ?? 0}`);
 
   // Add unassigned visits as events on a special "Unassigned" row if any exist
   if (routePlan.unassignedVisits && routePlan.unassignedVisits.length > 0) {
@@ -305,12 +348,19 @@ export function mapRoutePlanToOptimizedSchedule(
       // Look up full visit details from model input (unassignedVisits may only have id/name)
       const fullVisit = visitMap.get(visit.id);
       const duration = parseDurationToMinutes(fullVisit?.serviceDuration) || 30;
+      const eventEndDate = addMinutes(startDate, duration);
+      
+      // Validate date range
+      if (startDate.getTime() >= eventEndDate.getTime()) {
+        console.warn(`Unassigned visit ${visit.id} has invalid date range, skipping`);
+        return;
+      }
       
       events.push({
         id: `unassigned-${visit.id}`,
         resourceId: "unassigned",
         startDate: startDate.toISOString(),
-        endDate: addMinutes(startDate, duration).toISOString(),
+        endDate: eventEndDate.toISOString(),
         name: visit.name || fullVisit?.name || visit.id,
         eventType: "visit",
         status: "optimized",
@@ -595,7 +645,12 @@ export function simulateOptimizedSchedule(
       dayEvents.forEach((event, index) => {
         const originalStart = new Date(event.startDate).getTime();
         const originalEnd = new Date(event.endDate).getTime();
-        const duration = originalEnd - originalStart;
+        let duration = originalEnd - originalStart;
+
+        // Ensure duration is positive (at least 30 minutes)
+        if (duration <= 0) {
+          duration = 30 * 60 * 1000; // 30 minutes in milliseconds
+        }
 
         // Add a small gap between visits (15 min for travel simulation)
         const travelTime = index > 0 ? 15 * 60 * 1000 : 0;
@@ -606,6 +661,13 @@ export function simulateOptimizedSchedule(
         // Calculate new start time
         const newStart = new Date(currentTime + optimizedTravelTime);
         const newEnd = new Date(newStart.getTime() + duration);
+
+        // Validate dates before adding
+        if (newStart.getTime() >= newEnd.getTime()) {
+          console.warn(`Simulated event ${event.id} has invalid date range, skipping`);
+          currentTime = newStart.getTime() + 30 * 60 * 1000; // Skip ahead 30 minutes
+          return;
+        }
 
         // Create optimized event
         optimizedEvents.push({
